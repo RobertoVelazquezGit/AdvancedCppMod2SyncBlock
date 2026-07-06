@@ -16,12 +16,12 @@ private:
 
 public:
     void insert(const std::string& key, const T& value) {
-        std::unique_lock<std::shared_mutex> lock(mutex_);
+		std::unique_lock<std::shared_mutex> lock(mutex_);  // unique_lock is used for exclusive access to the map during insertion  
         data_[key] = value;
     }
 
     bool find(const std::string& key, T& value) const {
-        std::shared_lock<std::shared_mutex> lock(mutex_);
+		std::shared_lock<std::shared_mutex> lock(mutex_);  // shared_lock is used for shared access to the map during lookup    
         auto it = data_.find(key);
         if (it != data_.end()) {
             value = it->second;
@@ -78,16 +78,17 @@ int main() {
     // Writer threads
     std::vector<std::thread> writers;
     for (int i = 0; i < 3; ++i) {
+		// capture by reference to tracker and priceMap, and capture i by value to avoid issues with the loop variable in the lambda    
         writers.emplace_back([&, i]() {
             for (int j = 0; j < 100; ++j) {
-                auto start = std::chrono::high_resolution_clock::now();
+				auto start = std::chrono::high_resolution_clock::now();  // infered type is std::chrono::high_resolution_clock::time_point  
 
                 std::string key = "stock" + std::to_string(i * 100 + j);
                 double price = 100.0 + (rand() % 10000) / 100.0;
                 priceMap.insert(key, price);
 
                 auto end = std::chrono::high_resolution_clock::now();
-                auto duration = std::chrono::duration<double, std::milli>(end - start).count();
+                auto duration = std::chrono::duration<double, std::milli>(end - start).count();  // Convert the elapsed time to milliseconds and return it as a double.
                 tracker.recordOperation(duration);
             }
             });
