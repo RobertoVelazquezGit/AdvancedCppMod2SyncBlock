@@ -21,7 +21,7 @@ public:
 
     void lock() { mutex_.lock(); }
 	void unlock() { mutex_.unlock(); }  // from the static analysis, it seems that unlock() is not used in the code, but it's still a good practice to have it for completeness.    
-    bool try_lock() { return mutex_.try_lock(); }
+	bool try_lock() { return mutex_.try_lock(); }  // try_lock() is also not used in the current code, but it can be useful for more complex scenarios where you want to attempt to acquire a lock without blocking.    
 
     void modify(int delta) {
         value_ += delta;
