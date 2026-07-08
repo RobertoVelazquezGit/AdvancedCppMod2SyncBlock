@@ -55,7 +55,7 @@ public:
         for (const auto& name : sortedNames) {
             auto it = resources_.find(name);
             if (it != resources_.end()) {
-                it->second->lock();
+				it->second->lock();  // it->second is a pointer to Resource, so we use -> to call lock()    
                 acquiredResources.push_back(it->second);
             }
         }
@@ -68,7 +68,9 @@ public:
             // Release locks in reverse order on exception
             for (auto it = acquiredResources.rbegin();
                 it != acquiredResources.rend(); ++it) {
-                (*it)->unlock();
+				(*it)->unlock();  // *it is a pointer to Resource, so we use -> to call unlock()   
+                //Resource* resource = *it;
+                //resource->unlock();
             }
             throw;
         }
@@ -111,8 +113,8 @@ int main() {
         manager.executeTransaction(
             { "account2", "account1", "audit_log" },
             [](std::vector<Resource*>& resources) {
-                resources[1]->modify(-50);   // account1 (sorted order)
-                resources[0]->modify(50);    // account2 (sorted order)
+                resources[1]->modify(-50);   // account2, the comment was wrong in the original example
+                resources[0]->modify(50);    // account1
                 resources[2]->modify(1);     // audit_log
             });
         });
