@@ -35,6 +35,7 @@ struct TaskComparator {
         if (a.priority != b.priority) {
             return static_cast<int>(a.priority) < static_cast<int>(b.priority);
         }
+        // Earlier timestamp means higher priority (e.g. 10:00:00 before 10:00:05).
         return a.timestamp > b.timestamp; // Earlier timestamp has higher priority
     }
 };
@@ -189,29 +190,71 @@ public:
     }
 };
 
+//class TaskProcessor {
+//private:
+//    int processorId_;
+//    std::atomic<int> processedTasks_{ 0 };
+//
+//public:
+//    TaskProcessor(int id) : processorId_(id) {}
+//
+//    void processTask(const Task& task) {
+//        auto processingTime = std::chrono::milliseconds(
+//            50 + static_cast<int>(task.priority) * 25);
+//
+//        std::cout << "Processor " << processorId_
+//            << " processing task " << task.id
+//            << " (Priority: " << static_cast<int>(task.priority)
+//            << ")" << std::endl;
+//
+//        std::this_thread::sleep_for(processingTime);
+//        processedTasks_.fetch_add(1);
+//    }
+//
+//    int getProcessedCount() const {
+//        return processedTasks_.load();
+//    }
+//};
+
 class TaskProcessor {
 private:
     int processorId_;
     std::atomic<int> processedTasks_{ 0 };
 
 public:
-    TaskProcessor(int id) : processorId_(id) {}
-
-    void processTask(const Task& task) {
-        auto processingTime = std::chrono::milliseconds(
-            50 + static_cast<int>(task.priority) * 25);
-
-        std::cout << "Processor " << processorId_
-            << " processing task " << task.id
-            << " (Priority: " << static_cast<int>(task.priority)
-            << ")" << std::endl;
-
-        std::this_thread::sleep_for(processingTime);
-        processedTasks_.fetch_add(1);
+    TaskProcessor(int id)
+        : processorId_(id)
+    {
     }
 
-    int getProcessedCount() const {
+    void processTask(const Task& task)
+    {
+        auto processingTime =
+            std::chrono::milliseconds(
+                50 + static_cast<int>(task.priority) * 25);
+
+        std::cout
+            << "Processor "
+            << processorId_
+            << " processing task "
+            << task.id
+            << " (Priority "
+            << static_cast<int>(task.priority)
+            << ")\n";
+
+        std::this_thread::sleep_for(processingTime);
+
+        processedTasks_++;
+    }
+
+    int getProcessedCount() const
+    {
         return processedTasks_.load();
+    }
+
+    int getId() const
+    {
+        return processorId_;
     }
 };
 
