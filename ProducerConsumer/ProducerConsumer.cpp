@@ -31,6 +31,8 @@ struct Task {
 };
 
 struct TaskComparator {
+    // For std::priority_queue: if compare(a, b) is true,
+    // 'b' has higher priority than 'a'.
     bool operator()(const Task& a, const Task& b) const {
         if (a.priority != b.priority) {
             return static_cast<int>(a.priority) < static_cast<int>(b.priority);
@@ -128,7 +130,7 @@ public:
 
         if (shutdown_ && queue_.empty())
             return false;
-
+        // Gets copied to the object referenced by task
         task = queue_.top();
         queue_.pop();
 
