@@ -6,6 +6,7 @@
 #include <thread>
 #include <iostream>
 #include <chrono>
+#include <random>
 
 
 template<typename T>
@@ -91,7 +92,12 @@ public:
         // Release the removed node.
         // NOTE: In a real lock-free implementation, memory reclamation must
         // be handled safely (e.g., using hazard pointers or epoch-based reclamation).
-        delete head;
+       
+// Memory intentionally not released.
+// Immediate deletion is unsafe in this simplified lock-free implementation
+// because another thread may still hold a reference to this node.
+// Proper memory reclamation requires hazard pointers or epochs.
+		delete head;  // Comment out to avoid unsafe deletion in a real lock-free context.  
 
         return true;
     }
@@ -107,69 +113,131 @@ public:
 
 class PerformanceComparison {
 public:
-    static void benchmarkLockBased(int operations, int threads) {
+
+    static void benchmarkLockBased(int operations, int threads, double readRatio) {
         std::stack<int> stack;
         std::mutex stackMutex;
 
         auto start = std::chrono::high_resolution_clock::now();
 
         std::vector<std::thread> workerThreads;
+
         for (int i = 0; i < threads; ++i) {
             workerThreads.emplace_back([&, i]() {
-                for (int j = 0; j < operations / threads; ++j) {
-                    {
-                        std::lock_guard<std::mutex> lock(stackMutex);
-                        stack.push(i * 1000 + j);
-                    }
 
-                    {
+                std::mt19937 gen(std::random_device{}());
+                std::bernoulli_distribution readOperation(readRatio);
+
+                for (int j = 0; j < operations / threads; ++j) {
+
+                    if (readOperation(gen)) {
+                        // Pop operation
                         std::lock_guard<std::mutex> lock(stackMutex);
+
                         if (!stack.empty()) {
                             stack.pop();
                         }
+                    }
+                    else {
+                        // Push operation
+                        std::lock_guard<std::mutex> lock(stackMutex);
+                        stack.push(i * operations + j);
                     }
                 }
                 });
         }
 
-        for (auto& t : workerThreads) {
+        for (auto& t : workerThreads)
             t.join();
-        }
 
         auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
-        std::cout << "Lock-based stack: " << duration.count() << " ms" << std::endl;
+        auto duration =
+            std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+
+        std::cout << "Lock-based stack: "
+            << duration.count()
+            << " ms\n";
     }
 
-    static void benchmarkLockFree(int operations, int threads) {
+    static void benchmarkLockFree(int operations, int threads, double readRatio) {
         LockFreeStack<int> stack;
 
         auto start = std::chrono::high_resolution_clock::now();
 
         std::vector<std::thread> workerThreads;
+
         for (int i = 0; i < threads; ++i) {
             workerThreads.emplace_back([&, i]() {
-                for (int j = 0; j < operations / threads; ++j) {
-                    stack.push(i * 1000 + j);
 
-                    int dummy;
-                    stack.pop(dummy);
+                std::mt19937 gen(std::random_device{}());
+                std::bernoulli_distribution readOperation(readRatio);
+
+                int dummy;
+
+                for (int j = 0; j < operations / threads; ++j) {
+
+                    if (readOperation(gen)) {
+                        // Pop operation
+                        stack.pop(dummy);
+                    }
+                    else {
+                        // Push operation
+                        stack.push(i * operations + j);
+                    }
                 }
                 });
         }
 
-        for (auto& t : workerThreads) {
+        for (auto& t : workerThreads)
             t.join();
-        }
 
         auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
-        std::cout << "Lock-free stack: " << duration.count() << " ms" << std::endl;
+        auto duration =
+            std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+
+        std::cout << "Lock-free stack: "
+            << duration.count()
+            << " ms\n";
     }
 };
 
 int main() {
+    std::vector<int> threadCounts = { 1, 2, 4, 8, 16 };
+    std::vector<int> operationCounts = { 1000, 10000, 100000 };
+    std::vector<double> readRatios = { 0.25, 0.50, 0.75, 0.90 };
+
+    for (int operations : operationCounts) {
+
+        std::cout << "\n==================================================\n";
+        std::cout << "Operations: " << operations << '\n';
+        std::cout << "==================================================\n";
+
+        for (int threads : threadCounts) {
+
+            std::cout << "\nThreads: " << threads << '\n';
+
+            for (double readRatio : readRatios) {
+
+                std::cout << "\nRead operations: "
+                    << static_cast<int>(readRatio * 100)
+                    << "%\n";
+
+                PerformanceComparison::benchmarkLockBased(
+                    operations,
+                    threads,
+                    readRatio);
+
+                PerformanceComparison::benchmarkLockFree(
+                    operations,
+                    threads,
+                    readRatio);
+
+                std::cout << '\n';
+            }
+        }
+    }
+
     return 0;
-}   
+}
