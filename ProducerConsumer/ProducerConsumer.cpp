@@ -1,10 +1,3 @@
-//#include <queue>
-//#include <condition_variable>
-//#include <atomic>
-//#include <chrono>
-//#include <iostream>
-//#include <thread> 
-
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -57,6 +50,7 @@ public:
     {
         {
             std::lock_guard<std::mutex> lock(mutex_);
+            // Store a copy of the task in the priority queue.
             queue_.push(task);
         }
 
