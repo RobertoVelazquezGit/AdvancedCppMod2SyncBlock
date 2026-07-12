@@ -64,21 +64,35 @@ public:
     }
 
     bool pop(T& result) {
+        // Read the current head of the stack.
         Node* head = head_.load();
 
+        // Attempt to atomically move the head to the next node.
+        //
+        // The exchange succeeds only if head_ is still equal to our local
+        // pointer (head). If another thread modifies the stack first,
+        // compare_exchange_weak() updates 'head' with the current head,
+        // and we retry.
         while (head && !head_.compare_exchange_weak(head, head->next.load())) {
-            // Retry with updated head
+            // Retry with the updated head.
         }
 
+        // The stack is empty.
         if (!head) {
             return false;
         }
 
+        // Move the value from the removed node into the output parameter.
         result = std::move(head->data);
+
+        // Atomically decrement the number of elements.
         size_.fetch_sub(1);
 
-        // Safe deletion - in production, use hazard pointers or epochs
+        // Release the removed node.
+        // NOTE: In a real lock-free implementation, memory reclamation must
+        // be handled safely (e.g., using hazard pointers or epoch-based reclamation).
         delete head;
+
         return true;
     }
 
@@ -155,3 +169,7 @@ public:
         std::cout << "Lock-free stack: " << duration.count() << " ms" << std::endl;
     }
 };
+
+int main() {
+    return 0;
+}   

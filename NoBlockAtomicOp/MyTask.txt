@@ -1,0 +1,9 @@
+Utilizando el código que aparece a continuación, compara el rendimiento de las estructuras de datos con bloqueos frente a las sin bloqueos en diferentes condiciones:
+
+Número variable de subprocesos (1, 2, 4, 8, 16)
+
+Diferentes recuentos de operaciones (1000, 10 000, 100 000)
+
+Proporciones mixtas de lectura/escritura
+
+Analiza cuándo las estructuras sin bloqueo ofrecen ventajas y cuándo podría ser preferible el bloqueo tradicional.
