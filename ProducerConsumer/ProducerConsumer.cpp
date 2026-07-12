@@ -93,24 +93,25 @@ public:
 
         condition_.wait(lock, [this]
             {
-                if (shutdown_)
-                    return true;
-
-                if (queue_.empty())
-                    return false;
-
-                return queue_.top().priority >= Priority::HIGH;
+                return shutdown_ ||
+                    (!queue_.empty() &&
+                        queue_.top().priority >= Priority::HIGH);
             });
 
         waitingConsumers_--;
 
-        if (shutdown_)
+        if (shutdown_ && queue_.empty())
             return false;
 
-        task = queue_.top();
-        queue_.pop();
+        if (!queue_.empty() &&
+            queue_.top().priority >= Priority::HIGH)
+        {
+            task = queue_.top();
+            queue_.pop();
+            return true;
+        }
 
-        return true;
+        return false;
     }
 
     void shutdown()
@@ -268,4 +269,167 @@ void monitor(
 
     std::cout
         << "Monitor stopped\n";
+}
+
+void runScenario(
+    int producersCount,
+    int normalConsumersCount,
+    int highConsumersCount,
+    int tasksPerProducer)
+{
+    std::cout << "\n==============================\n";
+    std::cout << "Starting scenario\n";
+    std::cout << "==============================\n";
+
+    PriorityTaskQueue queue;
+
+    std::atomic<bool> stopMonitor{ false };
+
+    //--------------------------------------------------------
+    // Create processors
+    //--------------------------------------------------------
+
+    std::vector<std::unique_ptr<TaskProcessor>> processors;
+
+    for (int i = 0;
+        i < normalConsumersCount + highConsumersCount;
+        i++)
+    {
+        processors.push_back(
+            std::make_unique<TaskProcessor>(i + 1));
+    }
+
+    //--------------------------------------------------------
+    // Launch monitor
+    //--------------------------------------------------------
+
+    std::thread monitorThread(
+        monitor,
+        std::ref(queue),
+        std::ref(stopMonitor));
+
+    //--------------------------------------------------------
+    // Launch consumers
+    //--------------------------------------------------------
+
+    std::vector<std::thread> consumers;
+
+    int processorIndex = 0;
+
+    for (int i = 0; i < normalConsumersCount; i++)
+    {
+        consumers.emplace_back(
+            consumer,
+            std::ref(queue),
+            std::ref(*processors[processorIndex++]));
+    }
+
+    for (int i = 0; i < highConsumersCount; i++)
+    {
+        consumers.emplace_back(
+            highPriorityConsumer,
+            std::ref(queue),
+            std::ref(*processors[processorIndex++]));
+    }
+
+    //--------------------------------------------------------
+    // Launch producers
+    //--------------------------------------------------------
+
+    std::vector<std::thread> producers;
+
+    for (int i = 0; i < producersCount; i++)
+    {
+        producers.emplace_back(
+            producer,
+            std::ref(queue),
+            i + 1,
+            tasksPerProducer);
+    }
+
+    //--------------------------------------------------------
+    // Wait producers
+    //--------------------------------------------------------
+
+    for (auto& t : producers)
+        t.join();
+
+    std::cout
+        << "\nAll producers finished\n";
+
+    //--------------------------------------------------------
+    // Shutdown queue
+    //--------------------------------------------------------
+
+    queue.shutdown();
+
+    //--------------------------------------------------------
+    // Wait consumers
+    //--------------------------------------------------------
+
+    for (auto& t : consumers)
+        t.join();
+
+    //--------------------------------------------------------
+    // Stop monitor
+    //--------------------------------------------------------
+
+    stopMonitor = true;
+
+    monitorThread.join();
+
+    //--------------------------------------------------------
+    // Summary
+    //--------------------------------------------------------
+
+    std::cout
+        << "\n========== SUMMARY ==========\n";
+
+    for (const auto& p : processors)
+    {
+        std::cout
+            << "Processor "
+            << p->getId()
+            << " processed "
+            << p->getProcessedCount()
+            << " tasks\n";
+    }
+
+    std::cout
+        << "=============================\n";
+}
+
+int main()
+{
+    //------------------------------------------------------
+    // Scenario 1
+    //------------------------------------------------------
+
+    runScenario(
+        2,      // producers
+        2,      // normal consumers
+        1,      // high consumers
+        10);    // tasks per producer
+
+    //------------------------------------------------------
+    // Scenario 2
+    //------------------------------------------------------
+
+    runScenario(
+        5,
+        3,
+        2,
+        25);
+
+    //------------------------------------------------------
+    // Scenario 3
+    //------------------------------------------------------
+
+    runScenario(
+        1,
+        4,
+        1,
+        50);
+
+    return 0;
 }
