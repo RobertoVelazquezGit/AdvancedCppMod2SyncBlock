@@ -88,30 +88,59 @@ void producer(int producerId) {
 }
 
 // Consumer function for producer-consumer pattern
+//void consumer(int consumerId) {
+//    while (!stopProcessing.load()) {
+//        // SOLUTION: Thread-safe queue removal with condition variable
+//        unique_lock<mutex> lock(queueMutex);
+//
+//        // Wait until queue has items or stop is requested
+//        queueCondition.wait(lock, []() {
+//            return !sharedQueue.empty() || stopProcessing.load();
+//            });
+//
+//        // Check if we should stop and queue is empty
+//        if (stopProcessing.load() && sharedQueue.empty()) {
+//            break;
+//        }
+//
+//        // Remove item from queue
+//        if (!sharedQueue.empty()) {
+//            int item = sharedQueue.front();
+//            sharedQueue.pop();
+//            lock.unlock();  // Release lock before processing
+//
+//            cout << "Consumer " << consumerId << " processed item: " << item << endl;
+//            this_thread::sleep_for(chrono::milliseconds(300));
+//        }
+//    }
+//}
+
 void consumer(int consumerId) {
-    while (!stopProcessing.load()) {
-        // SOLUTION: Thread-safe queue removal with condition variable
+    while (true) {
         unique_lock<mutex> lock(queueMutex);
 
-        // Wait until queue has items or stop is requested
+        // Wait until there is an item to process or stop is requested
         queueCondition.wait(lock, []() {
             return !sharedQueue.empty() || stopProcessing.load();
             });
 
-        // Check if we should stop and queue is empty
+        // Exit only when stop is requested and no items remain
         if (stopProcessing.load() && sharedQueue.empty()) {
             break;
         }
 
-        // Remove item from queue
-        if (!sharedQueue.empty()) {
-            int item = sharedQueue.front();
-            sharedQueue.pop();
-            lock.unlock();  // Release lock before processing
+        // At this point, the queue is guaranteed to contain at least one item
+        int item = sharedQueue.front();
+        sharedQueue.pop();
 
-            cout << "Consumer " << consumerId << " processed item: " << item << endl;
-            this_thread::sleep_for(chrono::milliseconds(300));
-        }
+        // Release the mutex before processing the item
+        lock.unlock();
+
+        cout << "Consumer " << consumerId
+            << " processed item: " << item << endl;
+
+        // Simulate processing time
+        this_thread::sleep_for(chrono::milliseconds(300));
     }
 }
 
@@ -133,6 +162,8 @@ void demonstrateMutexTypes() {
         recursiveLock(depth - 1);  // Recursive call - would deadlock with regular mutex
 
         // Lock automatically released by lock_guard destructor
+        // Automatically unlocks the mutex as recursive calls unwind.
+        // The mutex is fully released after the outermost call returns.
         };
 
     thread recursiveThread([&]() {
