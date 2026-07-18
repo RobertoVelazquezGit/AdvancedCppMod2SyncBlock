@@ -1,0 +1,137 @@
+Which mechanism allows multiple threads to safely access shared data without corrupting it in C++ programs?
+std::chrono
+std::thread::detach
+std::mutex
+std::thread::join
+
+What is the primary purpose of utilizing condition variables in a multithreaded application?
+To allow threads to wait for a specific condition or state to be true
+To increase the number of threads a CPU can handle simultaneously
+To automatically terminate threads when they become idle
+To avoid needing any locks when accessing shared data
+
+Which of the following scenarios could lead to a deadlock in C++ multithreaded applications?
+When most threads are waiting for CPU resources
+When a program exhausts memory resources
+When two threads lock two resources in an opposite order of acquisition
+When a single thread accesses a shared resource without locking
+
+How can race conditions be effectively prevented in a multithreaded C++ application?
+Use std::chrono to delay thread execution
+Use std::thread::detach to ensure threads don’t interact directly
+Increase the number of threads to handle data simultaneously
+Implement std::mutex to synchronize access to shared resources
+
+You are developing a thread-safe banking application where multiple threads may attempt to withdraw or deposit money from the same account at the same time.
+Explain how you would use mutexes, locks, or condition variables to ensure the account balance remains accurate.
+Describe at least one technique for preventing deadlock when multiple resources are involved.
+Discuss how you would design the account class to ensure it is thread-safe, while still maintaining good performance.
+Finally, explain the difference between a situation that requires synchronization and one that does not require synchronization in this context.
+
+In a thread-safe banking application, the main goal is to ensure that multiple threads can access the same account without causing inconsistent or incorrect balances.
+
+1. Using mutexes, locks, and condition variables
+
+The account balance is shared data, so every operation that reads or modifies it, such as deposit or withdraw, must be protected by a mutex.
+
+A mutex guarantees that only one thread at a time can execute the critical section. The simplest way to achieve this is by using std::lock_guard, which automatically locks the mutex when it is created and unlocks it when it goes out of scope.
+
+Example:
+
+class Account {
+private:
+    double balance;
+    mutable std::mutex mtx;
+
+public:
+    void deposit(double amount) {
+        std::lock_guard<std::mutex> lock(mtx);
+        balance += amount;
+    }
+
+    bool withdraw(double amount) {
+        std::lock_guard<std::mutex> lock(mtx);
+
+        if (balance >= amount) {
+            balance -= amount;
+            return true;
+        }
+        return false;
+    }
+};
+
+If a withdrawal should wait until sufficient funds become available instead of failing immediately, a std::condition_variable can be used.
+
+The withdrawing thread waits until the balance is large enough:
+
+    cv.wait(lock, [&] { return balance >= amount; });
+
+Whenever a deposit increases the balance, it calls:
+
+    cv.notify_one();
+
+This wakes one waiting thread, which checks the condition again before continuing.
+
+------------------------------------------------------------
+
+2. Preventing deadlock
+
+Deadlocks can occur when multiple threads attempt to lock multiple resources in different orders.
+
+For example:
+
+- Thread A locks Account 1 and then waits for Account 2.
+- Thread B locks Account 2 and then waits for Account 1.
+
+Neither thread can continue.
+
+One common technique to prevent deadlocks is to always acquire locks in the same order, for example by locking accounts according to their account number.
+
+An even better solution in modern C++ is to use std::scoped_lock:
+
+    std::scoped_lock lock(account1.mtx, account2.mtx);
+
+std::scoped_lock locks both mutexes using a deadlock-avoidance algorithm provided by the C++ Standard Library.
+
+------------------------------------------------------------
+
+3. Designing a thread-safe Account class
+
+A thread-safe Account class should encapsulate both its data and its synchronization mechanism.
+
+Some important design principles are:
+
+- Keep the account balance private.
+- Protect every modification with a mutex.
+- Keep critical sections as short as possible.
+- Never expose the mutex to external code.
+- Avoid holding a lock while performing slow operations such as file I/O or network communication.
+
+For operations involving two accounts, such as transfers, both mutexes should be locked simultaneously using std::scoped_lock to guarantee consistency and avoid deadlocks.
+
+This design ensures correctness while minimizing lock contention and maintaining good performance.
+
+------------------------------------------------------------
+
+4. Operations that require synchronization versus those that do not
+
+Synchronization is required whenever multiple threads access shared data and at least one thread modifies that data.
+
+Examples that require synchronization include:
+
+- Depositing money.
+- Withdrawing money.
+- Transferring money between accounts.
+- Updating the transaction history.
+
+Without synchronization, two or more threads could modify the balance simultaneously, producing race conditions and an incorrect account balance.
+
+Operations that do not require synchronization are those that use only thread-local data or immutable data.
+
+Examples include:
+
+- Calculating interest using a local copy of the balance.
+- Formatting a bank statement stored entirely in local variables.
+- Performing computations that do not access shared account data.
+
+In general, synchronization is only necessary when shared mutable state is accessed concurrently. Avoiding unnecessary locking improves performance by reducing contention between threads.
